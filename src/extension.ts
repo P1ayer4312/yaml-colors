@@ -15,6 +15,7 @@ export function activate(context: vscode.ExtensionContext) {
     // yamlColors.findAndSortAllKeys(activeEditor);
     // yamlColors.findAndSortArrayKeys(activeEditor);
     // yamlColors.printRanges();
+    yamlColors.findAndDoStuff(activeEditor);
     yamlColors.applyDecorations(activeEditor);
   }
 

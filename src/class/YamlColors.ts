@@ -3,14 +3,26 @@ import { DecorationRangesObjects } from "./types/YamlColors";
 import * as vscode from "vscode";
 
 export class YamlColors {
+  // TODO: These might not be needed
   private readonly keysRegex: RegExp = /^(?:\s*)([a-zA-Z0-9_][a-zA-Z0-9_:-]*):(?=\s|$)/gim;
   private readonly arrayKeysRegex: RegExp = /^(?:\s*)-\s([a-zA-Z0-9_][a-zA-Z0-9_:-]*):(?=\s|$)/gim;
+  private customRegex: RegExp;
   private readonly decorationPalette: vscode.TextEditorDecorationType[];
   private decorationRanges: DecorationRangesObjects = {};
   private tabSize: number = 0;
 
   constructor(activeEditor?: vscode.TextEditor) {
     this.decorationPalette = getColorPalette();
+    const regexBuilder = [
+      // Capture normal keys
+      "^(?:\\s*)([a-zA-Z0-9_][a-zA-Z0-9_:-]*):(?=\\s|$)",
+      // Capture start minus of an array
+      "^(?:\\s*)-\\s",
+      // Capture each array minus and the following key
+      "(?<=^|\\s)-(?=\\s|$)|(?<=-\\s+)([a-zA-Z0-9_][a-zA-Z0-9_-]*):(?=\\s|$)",
+    ];
+
+    this.customRegex = new RegExp(regexBuilder.join("|"), "gim");
 
     // Define all decoration ranges
     for (let [key, value] of this.decorationPalette.entries()) {
@@ -32,6 +44,73 @@ export class YamlColors {
 
     if (activeEditor && !isNaN(size)) {
       this.tabSize = size;
+    }
+  }
+
+  /**
+   * Parse the editor text and sort each key with appropriate color
+   * @param activeEditor
+   * @returns
+   */
+  public findAndDoStuff(activeEditor: vscode.TextEditor): void {
+    if (!activeEditor) {
+      return;
+    }
+
+    this.checkAndSetTabSize(activeEditor);
+    const editorText: string = activeEditor.document.getText();
+
+    let match;
+    while ((match = this.customRegex.exec(editorText))) {
+      let excludeColon = 1;
+      const matchText = match[0];
+      const startPos = activeEditor.document.positionAt(match.index);
+
+      if (matchText === "-") {
+        excludeColon = 0;
+      }
+
+      const endPos = activeEditor.document.positionAt(match.index + match[0].length - excludeColon);
+
+      let intentEndPos = matchText.substring(matchText.lastIndexOf("\n")).lastIndexOf(" ");
+
+      if (intentEndPos === -1) {
+        intentEndPos = 0;
+      }
+
+      if (matchText === "-") {
+        intentEndPos = match.index;
+        if (intentEndPos % 2 !== 0) {
+          intentEndPos += 1;
+        }
+      }
+
+      // Calculate the key order and color
+      let colorOrderIndex = Math.round(intentEndPos / this.tabSize) % this.decorationPalette.length;
+
+      // Adjust color for array minus
+      if (matchText.charAt(matchText.length - 1) === "-") {
+        colorOrderIndex += 1;
+        if (colorOrderIndex >= this.decorationPalette.length) {
+          colorOrderIndex = 0;
+        }
+      }
+
+      console.log(
+        matchText.trimEnd(),
+        "##",
+        startPos,
+        endPos,
+        "##",
+        match.index,
+        match.index + match[0].length - 1,
+        "##",
+        intentEndPos,
+        "##",
+        colorOrderIndex
+      );
+
+      this.decorationRanges[colorOrderIndex].ranges.push(new vscode.Range(startPos, endPos));
     }
   }
 
