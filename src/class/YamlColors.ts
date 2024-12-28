@@ -60,55 +60,70 @@ export class YamlColors {
     this.checkAndSetTabSize(activeEditor);
     const editorText: string = activeEditor.document.getText();
 
-    let match;
-    while ((match = this.customRegex.exec(editorText))) {
-      let excludeColon = 1;
-      const matchText = match[0];
-      const startPos = activeEditor.document.positionAt(match.index);
+    /**
+     * Store the key intent to check if we're still inside an array,
+     * also used when determining which color to use
+     */
+    let intentEndPos: number = 0;
 
-      if (matchText === "-") {
-        excludeColon = 0;
+    /** Used for keeping track how many array are we in to offset the colors */
+    let nestedArrayCounter: number = 0;
+
+    let match: RegExpExecArray | null;
+
+    let lastStartOfArrayIntent: number = 0;
+    while ((match = this.customRegex.exec(editorText))) {
+      // console.log(match);
+
+      const matchText = match[0];
+      let colorOrderIndex: number;
+
+      // If the text is "-" we set it to 0 to not exclude it in the selection range
+      const excludeColon: number = matchText === "-" ? 0 : 1;
+
+      // Check if we're at a start of an array
+      const isStartOfAnArray: boolean = matchText.endsWith("- ");
+      const isFirstKeyOfArray: boolean =
+        !isStartOfAnArray && nestedArrayCounter > 0 && matchText !== "-" && !matchText.startsWith("\n");
+
+      let startOffset: number = match.index;
+      if (isFirstKeyOfArray || match.index === 0) {
+        startOffset = match.index;
+      } else {
+        startOffset = match.index + 1;
       }
 
+      const startPos = activeEditor.document.positionAt(startOffset);
       const endPos = activeEditor.document.positionAt(match.index + match[0].length - excludeColon);
 
-      let intentEndPos = matchText.substring(matchText.lastIndexOf("\n")).lastIndexOf(" ");
+      let newIntentEndPos = matchText.substring(matchText.lastIndexOf("\n")).lastIndexOf(" ");
 
-      if (intentEndPos === -1) {
-        intentEndPos = 0;
+      if (isFirstKeyOfArray) {
+        newIntentEndPos = intentEndPos + 1;
+      } else if (newIntentEndPos === -1) {
+        newIntentEndPos = 0;
       }
 
-      if (matchText === "-") {
-        intentEndPos = match.index;
-        if (intentEndPos % 2 !== 0) {
-          intentEndPos += 1;
+      if (isStartOfAnArray) {
+        // Fix the end of an intent by excluding the last two characters
+        newIntentEndPos -= 2;
+
+        if (lastStartOfArrayIntent < newIntentEndPos) {
+          nestedArrayCounter += 1;
+        } else if (lastStartOfArrayIntent > newIntentEndPos) {
+          nestedArrayCounter -= 1;
         }
+
+        lastStartOfArrayIntent = newIntentEndPos;
       }
 
-      // Calculate the key order and color
-      let colorOrderIndex = Math.round(intentEndPos / this.tabSize) % this.decorationPalette.length;
+      intentEndPos = newIntentEndPos;
 
-      // Adjust color for array minus
-      if (matchText.charAt(matchText.length - 1) === "-") {
-        colorOrderIndex += 1;
-        if (colorOrderIndex >= this.decorationPalette.length) {
-          colorOrderIndex = 0;
-        }
+      colorOrderIndex = Math.round(intentEndPos / this.tabSize) % this.decorationPalette.length;
+
+      if (colorOrderIndex < 0) {
+        colorOrderIndex = 0;
       }
-
-      console.log(
-        matchText.trimEnd(),
-        "##",
-        startPos,
-        endPos,
-        "##",
-        match.index,
-        match.index + match[0].length - 1,
-        "##",
-        intentEndPos,
-        "##",
-        colorOrderIndex
-      );
 
       this.decorationRanges[colorOrderIndex].ranges.push(new vscode.Range(startPos, endPos));
     }
