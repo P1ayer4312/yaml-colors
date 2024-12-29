@@ -15,6 +15,8 @@ export class YamlColors {
       "^(?:\\s*)([a-zA-Z0-9_][a-zA-Z0-9_:-]*):(?=\\s|$)",
       // Capture start minus of an array
       "^(?:\\s*)-\\s",
+      // Capture all commented yaml parts and exclude them, tried to do it in regex didn't work
+      "^(\\s*)#",
       // Capture each array minus and the following key
       "(?<=^|\\s)-(?=\\s|$)|(?<=-\\s)([a-zA-Z0-9_][a-zA-Z0-9_-]*):(?=\\s|$)",
     ];
@@ -63,19 +65,22 @@ export class YamlColors {
      */
     let intentEndPos: number = 0;
 
+    /** Skip line operations if it's a comment or processed, the regex captures commented parts too */
+    let processedLine: number = -1;
+
     let match: RegExpExecArray | null;
     while ((match = this.customRegex.exec(editorText))) {
-      // console.log(match);
-
-      const matchText = match[0];
       let colorOrderIndex: number;
+      let startOffset: number;
+      const matchText = match[0];
 
       // Check if we're at a start of an array
       const isStartOfAnArray: boolean = matchText.endsWith("- ");
+
+      // Check if it's the first intent array minus
       const isFirstKeyOfArray: boolean =
         !isStartOfAnArray && matchText !== "-" && !matchText.startsWith("\n");
 
-      let startOffset: number;
       if (isFirstKeyOfArray || match.index === 0) {
         startOffset = match.index;
       } else {
@@ -83,6 +88,13 @@ export class YamlColors {
       }
 
       const startPos = activeEditor.document.positionAt(startOffset);
+
+      if (processedLine === startPos.line || matchText.endsWith("#")) {
+        // Skip line if it's a comment or marked as processed
+        processedLine = startPos.line;
+        continue;
+      }
+
       const endPos = activeEditor.document.positionAt(match.index + match[0].length - 1);
 
       let newIntentEndPos = matchText.substring(matchText.lastIndexOf("\n")).lastIndexOf(" ");
@@ -112,7 +124,14 @@ export class YamlColors {
         colorOrderIndex = 0;
       }
 
+      // Add selected range to the collection
       this.decorationRanges[colorOrderIndex].ranges.push(new vscode.Range(startPos, endPos));
+
+      if (matchText.endsWith(":")) {
+        // Mark line as processed to not capture comments after the key. We do this at the
+        // bottom to first add the key and then exclude the line
+        processedLine = startPos.line;
+      }
     }
   }
 
