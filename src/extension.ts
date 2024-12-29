@@ -12,10 +12,7 @@ export function activate(context: vscode.ExtensionContext) {
       return;
     }
 
-    // yamlColors.findAndSortAllKeys(activeEditor);
-    // yamlColors.findAndSortArrayKeys(activeEditor);
-    // yamlColors.printRanges();
-    yamlColors.findAndDoStuff(activeEditor);
+    yamlColors.findAndSortAllKeys(activeEditor);
     yamlColors.applyDecorations(activeEditor);
   }
 
