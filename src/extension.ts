@@ -27,7 +27,7 @@ export function activate(context: vscode.ExtensionContext) {
       timeout = undefined;
     }
 
-    timeout = setTimeout(updateDecorations, 100);
+    timeout = setTimeout(updateDecorations, 200);
   }
 
   // prettier-ignore

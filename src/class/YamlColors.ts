@@ -87,7 +87,12 @@ export class YamlColors {
         startOffset = match.index + 1;
       }
 
-      const startPos = activeEditor.document.positionAt(startOffset);
+      let lastNewLineIndex = match[0].lastIndexOf("\n");
+      if (lastNewLineIndex === -1) {
+        lastNewLineIndex = 0;
+      }
+
+      const startPos = activeEditor.document.positionAt(startOffset + lastNewLineIndex);
 
       if (processedLine === startPos.line || matchText.endsWith("#")) {
         // Skip line if it's a comment or marked as processed
