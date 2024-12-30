@@ -4,7 +4,7 @@ import * as vscode from "vscode";
 
 export class YamlColors {
   private readonly customRegex: RegExp;
-  private readonly decorationPalette: vscode.TextEditorDecorationType[];
+  private decorationPalette: vscode.TextEditorDecorationType[];
   private decorationRanges: DecorationRangesObjects = {};
   private tabSize: number = 0;
 
@@ -154,7 +154,22 @@ export class YamlColors {
     }
   }
 
-  public printRanges() {
-    console.log(this.decorationRanges);
+  /** Fetch the new color palette and restructure old ranges */
+  public redefineDecorationPalette() {
+    this.decorationRanges = {};
+    this.decorationPalette = getColorPalette();
+    for (let [key, value] of this.decorationPalette.entries()) {
+      this.decorationRanges[key] = { ranges: [], decoration: value };
+    }
+  }
+
+  /** Dispose old decorations before destroying the object */
+  public clearDecorationRanges() {
+    for (let key in this.decorationRanges) {
+      const item = this.decorationRanges[key];
+      item.decoration.dispose();
+      item.ranges.length = 0;
+    }
+    this.decorationRanges = {};
   }
 }

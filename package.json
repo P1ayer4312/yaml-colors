@@ -1,6 +1,6 @@
 {
   "name": "yaml-colors",
-  "displayName": "",
+  "displayName": "yaml-colors",
   "description": "Color yaml keys based on intent",
   "version": "0.0.1",
   "engines": {
@@ -10,14 +10,32 @@
     "Other"
   ],
   "activationEvents": [
-    "onStartupFinished"
+    "onStartupFinished",
+    "onLanguage:yaml"
   ],
   "main": "./dist/extension.js",
   "contributes": {
     "commands": [
       {
-        "command": "yaml-colors.helloWorld",
-        "title": "Hello World"
+        "command": "yamlColorsExt.toggleExtension",
+        "title": "YAML Colors: Toggle Extension"
+      }
+    ],
+    "configuration": [
+      {
+        "title": "YAML Colors",
+        "properties": {
+          "yamlColorsExt.enabled": {
+            "description": "Enable/disable the extension",
+            "type": "boolean",
+            "default": true
+          },
+          "yamlColorsExt.customColors": {
+            "description": "Add as many hex string colors as you want '#ffffff'. Minimum of 2 colors is required.",
+            "type": "array",
+            "default": []
+          }
+        }
       }
     ]
   },

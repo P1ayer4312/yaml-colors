@@ -1,6 +1,8 @@
 import * as vscode from "vscode";
 import * as path from "node:path";
 
+const commandPrefix = "yamlColorsExt";
+
 /**
  * Check if the opened active document is a YAML file
  * @param activeTextEditor
@@ -22,7 +24,8 @@ export function isYamlFileOpened(activeTextEditor: vscode.TextEditor): boolean {
 }
 
 export function getColorPalette(): vscode.TextEditorDecorationType[] {
-  let toggleCustom = true;
+  const yamlColorsExt = vscode.workspace.getConfiguration(commandPrefix);
+  const hexRegex = /^#(?:[0-9a-fA-F]{3}){1,2}$/;
 
   const defaultBracketColors: vscode.ThemeColor[] = [
     new vscode.ThemeColor("editorBracketHighlight.foreground1"),
@@ -30,22 +33,44 @@ export function getColorPalette(): vscode.TextEditorDecorationType[] {
     new vscode.ThemeColor("editorBracketHighlight.foreground3"),
   ];
 
-  const customColors: string[] = [
-    "#04E762",
-    "#F5B700",
-    "#00A1E4",
-    "#DC0073",
-    // 2
+  let colorsArray: vscode.ThemeColor[] | string[] = defaultBracketColors;
+
+  // Handle user-provided data
+  if (yamlColorsExt.has("customColors")) {
+    const customColors = yamlColorsExt.get("customColors") as string[];
+
+    if (Array.isArray(customColors) && customColors.length > 1) {
+      const filterValidColors = customColors.filter((el) => hexRegex.test(el));
+
+      if (filterValidColors.length > 1) {
+        colorsArray = filterValidColors;
+      }
+    }
+  }
+
+  return colorsArray.map((color) => {
+    return vscode.window.createTextEditorDecorationType({ color });
+  });
+}
+
+type YamlColorsCommands = {
+  commandId: string;
+  commandHandler: (args: any) => void;
+};
+
+export function registerCommands(context: vscode.ExtensionContext) {
+  const commands: YamlColorsCommands[] = [
+    {
+      commandId: `${commandPrefix}.toggleExtension`,
+      commandHandler: () => {
+        const yamlColorsExt = vscode.workspace.getConfiguration(commandPrefix);
+        const toggleValue = yamlColorsExt.has("enabled") ? !yamlColorsExt.get("enabled") : true;
+        yamlColorsExt.update("enabled", toggleValue, true);
+      },
+    },
   ];
 
-  const chosenArray = toggleCustom ? customColors : defaultBracketColors;
-
-  // TODO: Add option to use colors provided by the user
-  return chosenArray.map((color) => {
-    return vscode.window.createTextEditorDecorationType({
-      color,
-      // border: `1px solid ${color}`,
-      // border: `1px solid red`,
-    });
-  });
+  for (let cmd of commands) {
+    context.subscriptions.push(vscode.commands.registerCommand(cmd.commandId, cmd.commandHandler));
+  }
 }

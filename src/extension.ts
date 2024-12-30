@@ -1,19 +1,24 @@
 import * as vscode from "vscode";
 import { YamlColors } from "./class/YamlColors";
-import { isYamlFileOpened } from "./utils/functions";
+import { isYamlFileOpened, registerCommands } from "./utils/functions";
 
 export function activate(context: vscode.ExtensionContext) {
+  const yamlColorsExt = vscode.workspace.getConfiguration("yamlColorsExt");
+  let isExtensionEnabled: boolean = yamlColorsExt.has("enabled")
+    ? Boolean(yamlColorsExt.get("enabled"))
+    : true;
+
   let timeout: NodeJS.Timeout | undefined = undefined;
-  let activeEditor = vscode.window.activeTextEditor;
-  const yamlColors: YamlColors = new YamlColors(activeEditor);
+  let activeEditor: vscode.TextEditor | undefined = vscode.window.activeTextEditor;
+  let yamlColors: YamlColors | null = new YamlColors(activeEditor);
 
   function updateDecorations() {
     if (!activeEditor) {
       return;
     }
 
-    yamlColors.findAndSortAllKeys(activeEditor);
-    yamlColors.applyDecorations(activeEditor);
+    yamlColors!.findAndSortAllKeys(activeEditor);
+    yamlColors!.applyDecorations(activeEditor);
   }
 
   function triggerUpdateDecorations() {
@@ -22,31 +27,70 @@ export function activate(context: vscode.ExtensionContext) {
       timeout = undefined;
     }
 
-    timeout = setTimeout(updateDecorations, 200);
+    timeout = setTimeout(updateDecorations, 100);
   }
 
-  vscode.window.onDidChangeActiveTextEditor(
-    (editor) => {
-      if (editor && isYamlFileOpened(editor)) {
-        activeEditor = editor;
-        triggerUpdateDecorations();
-      }
-    },
-    null,
-    context.subscriptions
-  );
+  // prettier-ignore
+  vscode.window.onDidChangeActiveTextEditor((editor) => {
+    if (isExtensionEnabled && editor && isYamlFileOpened(editor)) {
+      activeEditor = editor;
+      triggerUpdateDecorations();
+    }
+  }, null, context.subscriptions);
 
-  vscode.workspace.onDidChangeTextDocument(
-    (event) => {
-      if (activeEditor && event.document === activeEditor.document && isYamlFileOpened(activeEditor)) {
-        triggerUpdateDecorations();
-      }
-    },
-    null,
-    context.subscriptions
-  );
+  // prettier-ignore
+  vscode.workspace.onDidChangeTextDocument((event) => {
+    if (
+      isExtensionEnabled && activeEditor &&
+      event.document === activeEditor.document && isYamlFileOpened(activeEditor)
+    ) {
+      triggerUpdateDecorations();
+    }
+  }, null, context.subscriptions);
 
-  triggerUpdateDecorations();
+  // prettier-ignore
+  vscode.workspace.onDidOpenTextDocument((event) => {
+    // Trigger when a new unsaved file is added and the language mode changes
+    if (isExtensionEnabled && event.languageId === "yaml") {
+      activeEditor = vscode.window.activeTextEditor;
+      triggerUpdateDecorations();
+    }
+  }, null, context.subscriptions);
+
+  // prettier-ignore
+  vscode.workspace.onDidChangeConfiguration((event) => {
+    const enabledChanged = event.affectsConfiguration("yamlColorsExt.enabled");
+    const customColorsChanged = event.affectsConfiguration("yamlColorsExt.customColors");
+
+    // Handle extension toggle
+    if (enabledChanged) {
+      const yamlColorsExt = vscode.workspace.getConfiguration("yamlColorsExt");
+      isExtensionEnabled = Boolean(yamlColorsExt.get("enabled"));
+
+      if (isExtensionEnabled) {
+        activeEditor = vscode.window.activeTextEditor;
+        yamlColors = new YamlColors(activeEditor);
+
+        if (activeEditor && isYamlFileOpened(activeEditor)) {
+          triggerUpdateDecorations();
+        }
+      } else {
+        yamlColors!.clearDecorationRanges();
+        yamlColors = null;
+      }
+    }
+
+    // Handle colors array change
+    if (customColorsChanged && isExtensionEnabled) {
+      yamlColors!.redefineDecorationPalette();
+    }
+  }, null, context.subscriptions);
+
+  registerCommands(context);
+
+  if (isExtensionEnabled) {
+    triggerUpdateDecorations();
+  }
 }
 
 export function deactivate() {}
