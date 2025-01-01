@@ -59,10 +59,7 @@ export class YamlColors {
     this.checkAndSetTabSize(activeEditor);
     const editorText: string = activeEditor.document.getText();
 
-    /**
-     * Store the key intent to check if we're still inside an array,
-     * also used when determining which color to use
-     */
+    /** Store the key intent to determine which color to use */
     let intentEndPos: number = 0;
 
     /** Skip line operations if it's a comment or processed, the regex captures commented parts too */
