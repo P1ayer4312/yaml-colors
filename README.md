@@ -1,6 +1,7 @@
 # yaml-colors
 
 VSCode extension for coloring yaml keys based on intent
+
 ![Extension preview](./assets/image1.png)
 
 ## Features
@@ -17,6 +18,7 @@ This extension contributes the following settings:
 - `yamlColorsExt.customColors`: Array of hex color strings, minimum 2 required, ex. `["#04E762", "#F5B700", "#00A1E4", "#DC0073"]`
 
 ![Toggle preview](./assets/toggle-preview.gif)
+
 ![Multiple colors example](./assets/image2.png)
 
 **Enjoy!**
