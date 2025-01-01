@@ -4,6 +4,7 @@
   "description": "Color yaml keys based on intent",
   "version": "0.0.1",
   "icon": "assets/logo.jpg",
+  "publisher": "p1ayer4312",
   "repository": {
     "type": "git",
     "url": "https://github.com/P1ayer4312/yaml-colors.git"
