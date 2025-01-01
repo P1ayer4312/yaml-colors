@@ -3,6 +3,11 @@
   "displayName": "yaml-colors",
   "description": "Color yaml keys based on intent",
   "version": "0.0.1",
+  "icon": "assets/logo.jpg",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/P1ayer4312/yaml-colors.git"
+  },
   "engines": {
     "vscode": "^1.95.0"
   },
