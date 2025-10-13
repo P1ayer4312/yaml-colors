@@ -1,48 +1,18 @@
 import { getColorPalette } from "../utils/functions";
 import { DecorationRangesObjects } from "./types/YamlColors";
 import * as vscode from "vscode";
+import * as yaml from "yaml";
 
 export class YamlColors {
-  private readonly customRegex: RegExp;
   private decorationPalette: vscode.TextEditorDecorationType[];
   private decorationRanges: DecorationRangesObjects = {};
-  private tabSize: number = 0;
 
-  constructor(activeEditor?: vscode.TextEditor) {
+  constructor() {
     this.decorationPalette = getColorPalette();
-    const regexBuilder = [
-      // Capture normal keys
-      "^(?:\\s*)([a-zA-Z0-9_][a-zA-Z0-9_:-]*):(?=\\s|$)",
-      // Capture start minus of an array
-      "^(?:\\s*)-\\s",
-      // Capture all commented yaml parts and exclude them, tried to do it in regex didn't work
-      "^(\\s*)#",
-      // Capture each array minus and the following key
-      "(?<=^|\\s)-(?=\\s|$)|(?<=-\\s)([a-zA-Z0-9_][a-zA-Z0-9_-]*):(?=\\s|$)",
-    ];
-
-    this.customRegex = new RegExp(regexBuilder.join("|"), "gim");
 
     // Define all decoration ranges
     for (let [key, value] of this.decorationPalette.entries()) {
       this.decorationRanges[key] = { ranges: [], decoration: value };
-    }
-
-    if (activeEditor) {
-      this.checkAndSetTabSize(activeEditor);
-    }
-  }
-
-  /**
-   * Set the tab size
-   * @param activeEditor
-   * @returns
-   */
-  private checkAndSetTabSize(activeEditor: vscode.TextEditor): void {
-    const size = Number(activeEditor.options.tabSize);
-
-    if (activeEditor && !isNaN(size)) {
-      this.tabSize = size;
     }
   }
 
@@ -56,85 +26,67 @@ export class YamlColors {
       return;
     }
 
-    this.checkAndSetTabSize(activeEditor);
     const editorText: string = activeEditor.document.getText();
+    const rangesCollector: vscode.Range[] = [];
+    const docs = yaml.parseAllDocuments(editorText, { keepSourceTokens: true });
+    const tabSize = Number(activeEditor.options.tabSize) || 2;
 
-    /** Store the key intent to determine which color to use */
-    let intentEndPos: number = 0;
+    // Convert yaml ranges to active editor positions and create a Range object
+    function createRange(input: number[]): vscode.Range {
+      const startPos = activeEditor.document.positionAt(input[0]);
+      const endPos = activeEditor.document.positionAt(input[1]);
 
-    /** Skip line operations if it's a comment or processed, the regex captures commented parts too */
-    let processedLine: number = -1;
+      return new vscode.Range(startPos, endPos);
+    }
 
-    let match: RegExpExecArray | null;
-    while ((match = this.customRegex.exec(editorText))) {
-      let colorOrderIndex: number;
-      let startOffset: number;
-      const matchText = match[0];
-
-      // Check if we're at a start of an array
-      const isStartOfAnArray: boolean = matchText.endsWith("- ");
-
-      // Check if it's the first intent array minus
-      const isFirstKeyOfArray: boolean =
-        !isStartOfAnArray && matchText !== "-" && !matchText.startsWith("\n");
-
-      if (isFirstKeyOfArray || match.index === 0) {
-        startOffset = match.index;
-      } else {
-        startOffset = match.index + 1;
-      }
-
-      let lastNewLineIndex = match[0].lastIndexOf("\n");
-      if (lastNewLineIndex === -1) {
-        lastNewLineIndex = 0;
-      }
-
-      const startPos = activeEditor.document.positionAt(startOffset + lastNewLineIndex);
-
-      if (processedLine === startPos.line || matchText.endsWith("#")) {
-        // Skip line if it's a comment or marked as processed
-        processedLine = startPos.line;
-        continue;
-      }
-
-      const endPos = activeEditor.document.positionAt(match.index + match[0].length - 1);
-
-      let newIntentEndPos = matchText.substring(matchText.lastIndexOf("\n")).lastIndexOf(" ");
-
-      if (match.index === 0) {
-        // Fix the color index for the first line key
-        newIntentEndPos = 0;
-      } else if (isFirstKeyOfArray) {
-        // Adjust the color for the first key of an array to follow order
-        newIntentEndPos = intentEndPos + 1;
-      } else if (matchText === "-") {
-        newIntentEndPos = intentEndPos + 2;
-      } else if (newIntentEndPos === -1) {
-        // The key has no intent
-        newIntentEndPos = 0;
-      }
-
-      if (isStartOfAnArray) {
-        // Fix the end of an intent by excluding the last two characters
-        newIntentEndPos -= 2;
-      }
-
-      intentEndPos = newIntentEndPos;
-
-      colorOrderIndex = Math.round(intentEndPos / this.tabSize) % this.decorationPalette.length;
-      if (colorOrderIndex < 0) {
-        colorOrderIndex = 0;
-      }
-
-      // Add selected range to the collection
-      this.decorationRanges[colorOrderIndex].ranges.push(new vscode.Range(startPos, endPos));
-
-      if (matchText.endsWith(":")) {
-        // Mark line as processed to not capture comments after the key. We do this at the
-        // bottom to first add the key and then exclude the line
-        processedLine = startPos.line;
+    // Used for getting the positions of array dashes '-'
+    function extractSrcTokenRanges(input: yaml.CST.Token) {
+      if (input.type === "block-map") {
+        for (let item of input.items) {
+          extractSrcTokenRanges(item.value!);
+        }
+      } else if (input.type === "block-seq") {
+        input.items.forEach((item) => {
+          const start = item.start.find((item) => item.source === "-");
+          if (start) {
+            rangesCollector.push(createRange([start.offset, start.offset + 1, -1]));
+          }
+        });
       }
     }
+
+    // Iterate over all yaml parts and extract their ranges
+    function extractRanges(input: any) {
+      if (input instanceof yaml.YAMLMap && !input.flow) {
+        for (let item of input.items) {
+          rangesCollector.push(createRange(item.key.range));
+
+          if (!(item.value instanceof yaml.Scalar)) {
+            extractRanges(item.value);
+          }
+        }
+      } else if (input instanceof yaml.YAMLSeq && !input.flow) {
+        if (input.srcToken) {
+          extractSrcTokenRanges(input.srcToken);
+        }
+
+        for (let item of input.items) {
+          if (!(item instanceof yaml.Scalar)) {
+            extractRanges(item);
+          }
+        }
+      }
+    }
+
+    for (let doc of docs) {
+      extractRanges(doc.contents);
+    }
+
+    rangesCollector.forEach((item) => {
+      const keyOffset = item.start.character;
+      const colorOrderIndex = Math.round(keyOffset / tabSize) % this.decorationPalette.length;
+      this.decorationRanges[colorOrderIndex].ranges.push(item);
+    });
   }
 
   /**
@@ -160,6 +112,7 @@ export class YamlColors {
   public redefineDecorationPalette() {
     this.decorationRanges = {};
     this.decorationPalette = getColorPalette();
+
     for (let [key, value] of this.decorationPalette.entries()) {
       this.decorationRanges[key] = { ranges: [], decoration: value };
     }
@@ -172,6 +125,7 @@ export class YamlColors {
       item.decoration.dispose();
       item.ranges.length = 0;
     }
+
     this.decorationRanges = {};
   }
 }
