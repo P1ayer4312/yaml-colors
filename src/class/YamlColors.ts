@@ -83,7 +83,12 @@ export class YamlColors {
     }
 
     rangesCollector.forEach((item) => {
-      const keyOffset = item.start.character;
+      let keyOffset = item.start.character;
+      const offsetMod = keyOffset % tabSize;
+      if (offsetMod !== 0) {
+        // Not sure if this is a proper way to handle tab size 4 for dashes '-'
+        keyOffset -= offsetMod + tabSize;
+      }
       const colorOrderIndex = Math.round(keyOffset / tabSize) % this.decorationPalette.length;
       this.decorationRanges[colorOrderIndex].ranges.push(item);
     });

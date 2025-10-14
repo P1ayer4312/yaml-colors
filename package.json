@@ -73,7 +73,6 @@
     "typescript": "^5.9.3"
   },
   "dependencies": {
-    "@types/yaml": "^1.9.7",
     "yaml": "^2.8.1"
   }
 }
