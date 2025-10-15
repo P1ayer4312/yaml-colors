@@ -43,7 +43,9 @@ export class YamlColors {
     function extractSrcTokenRanges(input: yaml.CST.Token) {
       if (input.type === "block-map") {
         for (let item of input.items) {
-          extractSrcTokenRanges(item.value!);
+          if (item.value) {
+            extractSrcTokenRanges(item.value);
+          }
         }
       } else if (input.type === "block-seq") {
         input.items.forEach((item) => {
