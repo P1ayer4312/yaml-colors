@@ -1,24 +1,26 @@
 import * as vscode from "vscode";
 import { YamlColors } from "./class/YamlColors";
-import { isYamlFileOpened, registerCommands } from "./utils/functions";
+import { getExtensionConfig, isYamlFileOpened, registerCommands } from "./utils/functions";
 
 export function activate(context: vscode.ExtensionContext) {
-  const yamlColorsExt = vscode.workspace.getConfiguration("yamlColorsExt");
+  const configIdentifier = "yamlColorsExt";
+
+  const yamlColorsExt = getExtensionConfig(configIdentifier);
   let isExtensionEnabled: boolean = yamlColorsExt.has("enabled")
-    ? Boolean(yamlColorsExt.get("enabled"))
+    ? (yamlColorsExt.get("enabled") as boolean)
     : true;
 
   let timeout: NodeJS.Timeout | undefined = undefined;
   let activeEditor: vscode.TextEditor | undefined = vscode.window.activeTextEditor;
-  let yamlColors: YamlColors | null = new YamlColors(activeEditor);
+  let yamlColors: YamlColors | null = new YamlColors();
 
   function updateDecorations() {
-    if (!activeEditor) {
+    if (!activeEditor || !yamlColors) {
       return;
     }
 
-    yamlColors!.findAndSortAllKeys(activeEditor);
-    yamlColors!.applyDecorations(activeEditor);
+    yamlColors.findAndSortAllKeys(activeEditor);
+    yamlColors.applyDecorations(activeEditor);
   }
 
   function triggerUpdateDecorations() {
@@ -59,36 +61,36 @@ export function activate(context: vscode.ExtensionContext) {
 
   // prettier-ignore
   vscode.workspace.onDidChangeConfiguration((event) => {
-    const enabledChanged = event.affectsConfiguration("yamlColorsExt.enabled");
-    const customColorsChanged = event.affectsConfiguration("yamlColorsExt.customColors");
+    const enabledChanged = event.affectsConfiguration(`${configIdentifier}.enabled`);
+    const customColorsChanged = event.affectsConfiguration(`${configIdentifier}.customColors`);
 
     // Handle extension toggle
     if (enabledChanged) {
-      const yamlColorsExt = vscode.workspace.getConfiguration("yamlColorsExt");
-      isExtensionEnabled = Boolean(yamlColorsExt.get("enabled"));
+      const yamlColorsExt = getExtensionConfig(configIdentifier);
+      isExtensionEnabled = yamlColorsExt.get("enabled") as boolean;
 
       if (isExtensionEnabled) {
         activeEditor = vscode.window.activeTextEditor;
-        yamlColors = new YamlColors(activeEditor);
+        yamlColors = new YamlColors();
 
         if (activeEditor && isYamlFileOpened(activeEditor)) {
           triggerUpdateDecorations();
         }
-      } else {
-        yamlColors!.clearDecorationRanges();
+      } else if (yamlColors) {
+        yamlColors.clearDecorationRanges();
         yamlColors = null;
       }
     }
 
     // Handle colors array change
-    if (customColorsChanged && isExtensionEnabled) {
-      yamlColors!.redefineDecorationPalette();
+    if (isExtensionEnabled && customColorsChanged && yamlColors) {
+      yamlColors.redefineDecorationPalette();
     }
   }, null, context.subscriptions);
 
   registerCommands(context);
 
-  if (isExtensionEnabled) {
+  if (isExtensionEnabled && activeEditor && isYamlFileOpened(activeEditor)) {
     triggerUpdateDecorations();
   }
 }

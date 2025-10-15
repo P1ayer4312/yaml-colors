@@ -74,3 +74,13 @@ export function registerCommands(context: vscode.ExtensionContext) {
     context.subscriptions.push(vscode.commands.registerCommand(cmd.commandId, cmd.commandHandler));
   }
 }
+
+export function getExtensionConfig(identifier: string): vscode.WorkspaceConfiguration {
+  const config = vscode.workspace.getConfiguration(identifier);
+
+  if (!config.has("enabled")) {
+    config.update("enabled", true, true);
+  }
+
+  return config;
+}
